@@ -1,0 +1,31 @@
+{
+  "name": "@modelcontextprotocol/server-chrome-extension",
+  "version": "1.0.0",
+  "description": "MCP server for Chrome Extension",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "mcp-server-chrome-extension": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.0.1",
+    "@types/ws": "^8.5.10",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "shx": "^0.3.4",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+} 

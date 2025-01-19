@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MCP Chrome Extension</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 10px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .status {
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .connected {
+      background-color: #e6ffe6;
+      color: #006600;
+    }
+    .disconnected {
+      background-color: #ffe6e6;
+      color: #660000;
+    }
+    .info {
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h2>MCP Chrome Extension</h2>
+  <div id="connectionStatus" class="status disconnected">
+    Disconnected from MCP Server
+  </div>
+  <div class="info">
+    <p>Server Port: <span id="port">8765</span></p>
+    <p>Last Message: <span id="lastMessage">-</span></p>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html> 
