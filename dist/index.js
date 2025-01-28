@@ -1,175 +1,297 @@
 #!/usr/bin/env node
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { WebSocketServer } from 'ws';
 const PORT = 8765;
 const wss = new WebSocketServer({ port: PORT });
 let activeConnection = null;
 // Tool definitions
 const getActiveTabTool = {
-    name: "chrome_get_active_tab",
-    description: "Get information about the currently active tab",
+    name: 'chrome_get_active_tab',
+    description: 'Get information about the currently active tab',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {},
     },
 };
 const getAllTabsTool = {
-    name: "chrome_get_all_tabs",
-    description: "Get information about all open tabs",
+    name: 'chrome_get_all_tabs',
+    description: 'Get information about all open tabs',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {},
     },
 };
 const executeScriptTool = {
-    name: "chrome_execute_script",
-    description: "Execute JavaScript code in the context of a web page",
+    name: 'chrome_execute_script',
+    description: 'Execute DOM operations in the context of a web page',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             tab_id: {
-                type: "number",
-                description: "The ID of the target tab",
+                type: 'number',
+                description: 'The ID of the target tab',
             },
-            code: {
-                type: "string",
-                description: "JavaScript code to execute",
+            operation: {
+                type: 'object',
+                description: 'DOM operation details',
+                required: ['action'],
+                properties: {
+                    action: {
+                        type: 'string',
+                        enum: [
+                            'querySelector',
+                            'querySelectorAll',
+                            'setText',
+                            'setHTML',
+                            'setAttribute',
+                            'removeAttribute',
+                            'addClass',
+                            'removeClass',
+                            'toggleClass',
+                            'createElement',
+                            'appendChild',
+                            'removeElement',
+                            'getPageInfo',
+                            'getElementsInfo',
+                            'log',
+                            'click',
+                        ],
+                        description: 'The type of DOM operation to perform',
+                    },
+                    selector: {
+                        type: 'string',
+                        description: 'CSS selector for targeting elements',
+                    },
+                    value: {
+                        type: ['string', 'number', 'boolean'],
+                        description: 'Value to set (for setText, setHTML, setAttribute, etc.)',
+                    },
+                    attribute: {
+                        type: 'string',
+                        description: 'Attribute name for setAttribute/removeAttribute operations',
+                    },
+                    tagName: {
+                        type: 'string',
+                        description: 'Tag name for createElement operation',
+                    },
+                    attributes: {
+                        type: 'object',
+                        description: 'Attributes for createElement operation',
+                        additionalProperties: {
+                            type: ['string', 'number', 'boolean'],
+                        },
+                    },
+                    innerText: {
+                        type: 'string',
+                        description: 'Inner text for createElement operation',
+                    },
+                    elementId: {
+                        type: 'string',
+                        description: 'Element ID for appendChild operation',
+                    },
+                    message: {
+                        type: 'string',
+                        description: 'Message for log operation',
+                    },
+                },
+                allOf: [
+                    {
+                        if: { properties: { action: { const: 'querySelector' } } },
+                        then: { required: ['selector'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'querySelectorAll' } } },
+                        then: { required: ['selector'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'setText' } } },
+                        then: { required: ['selector', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'setHTML' } } },
+                        then: { required: ['selector', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'setAttribute' } } },
+                        then: { required: ['selector', 'attribute', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'removeAttribute' } } },
+                        then: { required: ['selector', 'attribute'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'addClass' } } },
+                        then: { required: ['selector', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'removeClass' } } },
+                        then: { required: ['selector', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'toggleClass' } } },
+                        then: { required: ['selector', 'value'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'createElement' } } },
+                        then: { required: ['tagName'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'appendChild' } } },
+                        then: { required: ['selector', 'elementId'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'removeElement' } } },
+                        then: { required: ['selector'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'getElementsInfo' } } },
+                        then: { required: ['selector'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'log' } } },
+                        then: { required: ['message'] },
+                    },
+                    {
+                        if: { properties: { action: { const: 'click' } } },
+                        then: { required: ['selector'] },
+                    },
+                ],
             },
         },
-        required: ["tab_id", "code"],
+        required: ['tab_id', 'operation'],
     },
 };
 const injectCssTool = {
-    name: "chrome_inject_css",
-    description: "Inject CSS into a web page",
+    name: 'chrome_inject_css',
+    description: 'Inject CSS into a web page',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             tab_id: {
-                type: "number",
-                description: "The ID of the target tab",
+                type: 'number',
+                description: 'The ID of the target tab',
             },
             css: {
-                type: "string",
-                description: "CSS code to inject",
+                type: 'string',
+                description: 'CSS code to inject',
             },
         },
-        required: ["tab_id", "css"],
+        required: ['tab_id', 'css'],
     },
 };
 const getExtensionInfoTool = {
-    name: "chrome_get_extension_info",
-    description: "Get information about installed extensions",
+    name: 'chrome_get_extension_info',
+    description: 'Get information about installed extensions',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             extension_id: {
-                type: "string",
-                description: "Specific extension ID to query",
+                type: 'string',
+                description: 'Specific extension ID to query',
             },
         },
     },
 };
 const sendMessageTool = {
-    name: "chrome_send_message",
+    name: 'chrome_send_message',
     description: "Send a message to an extension's background script",
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             extension_id: {
-                type: "string",
-                description: "Target extension ID",
+                type: 'string',
+                description: 'Target extension ID',
             },
             message: {
-                type: "object",
-                description: "Message payload to send",
+                type: 'object',
+                description: 'Message payload to send',
             },
         },
-        required: ["extension_id", "message"],
+        required: ['extension_id', 'message'],
     },
 };
 const getCookiesTool = {
-    name: "chrome_get_cookies",
-    description: "Get cookies for a specific domain",
+    name: 'chrome_get_cookies',
+    description: 'Get cookies for a specific domain',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             domain: {
-                type: "string",
-                description: "Domain to get cookies for",
+                type: 'string',
+                description: 'Domain to get cookies for',
             },
         },
-        required: ["domain"],
+        required: ['domain'],
     },
 };
 const captureScreenshotTool = {
-    name: "chrome_capture_screenshot",
-    description: "Take a screenshot of the current tab",
+    name: 'chrome_capture_screenshot',
+    description: 'Take a screenshot of the current tab',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             tab_id: {
-                type: "number",
-                description: "The ID of the target tab (defaults to active tab)",
+                type: 'number',
+                description: 'The ID of the target tab (defaults to active tab)',
             },
             format: {
-                type: "string",
+                type: 'string',
                 description: "Image format ('png' or 'jpeg', defaults to 'png')",
-                enum: ["png", "jpeg"],
-                default: "png",
+                enum: ['png', 'jpeg'],
+                default: 'png',
             },
             quality: {
-                type: "number",
-                description: "Image quality for jpeg format (0-100)",
+                type: 'number',
+                description: 'Image quality for jpeg format (0-100)',
                 minimum: 0,
                 maximum: 100,
             },
             area: {
-                type: "object",
-                description: "Capture specific area",
+                type: 'object',
+                description: 'Capture specific area',
                 properties: {
-                    x: { type: "number" },
-                    y: { type: "number" },
-                    width: { type: "number" },
-                    height: { type: "number" },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
                 },
-                required: ["x", "y", "width", "height"],
+                required: ['x', 'y', 'width', 'height'],
             },
         },
     },
 };
 const createTabTool = {
-    name: "chrome_create_tab",
-    description: "Create a new tab with specified URL and options",
+    name: 'chrome_create_tab',
+    description: 'Create a new tab with specified URL and options',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
             url: {
-                type: "string",
-                description: "URL to open in the new tab",
+                type: 'string',
+                description: 'URL to open in the new tab',
             },
             active: {
-                type: "boolean",
-                description: "Whether the new tab should be active",
+                type: 'boolean',
+                description: 'Whether the new tab should be active',
                 default: true,
             },
             index: {
-                type: "number",
-                description: "The position the tab should take in the window",
+                type: 'number',
+                description: 'The position the tab should take in the window',
             },
             windowId: {
-                type: "number",
-                description: "The window to create the new tab in",
+                type: 'number',
+                description: 'The window to create the new tab in',
             },
         },
     },
 };
 // Create MCP server
 const server = new Server({
-    name: "chrome-extension-server",
-    version: "1.0.0",
+    name: 'chrome-extension-server',
+    version: '1.0.0',
 }, {
     capabilities: {
         tools: {},
@@ -183,7 +305,11 @@ wss.on('connection', (ws) => {
             const message = JSON.parse(data.toString());
             // ハートビートメッセージの処理
             if (message.type === 'heartbeat') {
-                ws.send(JSON.stringify({ type: 'heartbeat_response' }));
+                ws.send(JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'heartbeat',
+                    result: { type: 'heartbeat_response' },
+                }));
                 return;
             }
             // ハートビートレスポンスの処理
@@ -196,8 +322,12 @@ wss.on('connection', (ws) => {
         catch (error) {
             console.error('Error processing message:', error);
             ws.send(JSON.stringify({
-                status: 'error',
-                error: error instanceof Error ? error.message : 'Unknown error'
+                jsonrpc: '2.0',
+                method: 'error',
+                error: {
+                    code: -32603,
+                    message: error instanceof Error ? error.message : 'Unknown error',
+                },
             }));
         }
     });
@@ -208,8 +338,12 @@ wss.on('connection', (ws) => {
     });
     ws.on('error', (error) => {
         console.error(JSON.stringify({
-            status: 'error',
-            error: error.message
+            jsonrpc: '2.0',
+            method: 'error',
+            error: {
+                code: -32603,
+                message: error.message,
+            },
         }));
     });
 });
@@ -228,66 +362,92 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     ],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const requestId = Math.floor(Math.random() * 1000000);
     if (!request.params.arguments) {
         return {
-            content: [{
-                    type: "text",
+            content: [
+                {
+                    type: 'text',
                     text: JSON.stringify({
-                        status: 'error',
-                        error: 'No arguments provided'
-                    })
-                }],
-            isError: true
+                        jsonrpc: '2.0',
+                        method: request.params.name,
+                        error: {
+                            code: -32602,
+                            message: 'No arguments provided',
+                        },
+                    }),
+                },
+            ],
+            isError: true,
         };
     }
     if (!activeConnection) {
         return {
-            content: [{
-                    type: "text",
+            content: [
+                {
+                    type: 'text',
                     text: JSON.stringify({
-                        status: 'error',
-                        error: 'No active Chrome extension connection'
-                    })
-                }],
-            isError: true
+                        jsonrpc: '2.0',
+                        method: request.params.name,
+                        error: {
+                            code: -32603,
+                            message: 'No active Chrome extension connection',
+                        },
+                    }),
+                },
+            ],
+            isError: true,
         };
     }
     try {
-        const connection = activeConnection; // キャプチャして型安全性を確保
-        // Chrome拡張機能からの応答を待つPromiseを作成
+        const connection = activeConnection;
         const response = await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 reject(new Error('Timeout waiting for Chrome extension response'));
-            }, 30000); // 30秒タイムアウト
+            }, 30000);
             const messageHandler = (data) => {
                 clearTimeout(timeout);
                 connection.removeListener('message', messageHandler);
-                resolve(data.toString());
+                try {
+                    const parsedResponse = JSON.parse(data.toString());
+                    resolve({
+                        content: [
+                            {
+                                type: 'text',
+                                text: JSON.stringify(parsedResponse),
+                            },
+                        ],
+                        _meta: {},
+                        isError: false,
+                    });
+                }
+                catch (error) {
+                    reject(error);
+                }
             };
             connection.on('message', messageHandler);
-            // リクエストを Chrome 拡張機能に送信
+            // リクエストを送信
             connection.send(JSON.stringify({
-                tool: request.params.name,
-                arguments: request.params.arguments
+                jsonrpc: '2.0',
+                id: `${request.params.name}_${Date.now()}`,
+                method: request.params.name,
+                params: request.params.arguments,
             }));
         });
-        return {
-            content: [{
-                    type: "text",
-                    text: response
-                }]
-        };
+        return response;
     }
     catch (error) {
         return {
-            content: [{
-                    type: "text",
+            content: [
+                {
+                    type: 'text',
                     text: JSON.stringify({
-                        status: 'error',
-                        error: error instanceof Error ? error.message : 'Unknown error'
-                    })
-                }],
-            isError: true
+                        error: error instanceof Error ? error.message : 'Unknown error',
+                    }),
+                },
+            ],
+            _meta: {},
+            isError: true,
         };
     }
 });
@@ -295,9 +455,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("Chrome Extension MCP Server running on stdio");
+    console.error('Chrome Extension MCP Server running on stdio');
 }
 main().catch((error) => {
-    console.error("Fatal error running server:", error);
+    console.error('Fatal error running server:', error);
     process.exit(1);
 });

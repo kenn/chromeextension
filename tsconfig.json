@@ -1,16 +1,13 @@
 {
-    "extends": "../../tsconfig.json",
-    "compilerOptions": {
-      "outDir": "./dist",
-      "rootDir": ".",
-      "esModuleInterop": true,
-      "allowSyntheticDefaultImports": true,
-      "skipLibCheck": true,
-      "moduleResolution": "NodeNext",
-      "module": "NodeNext",
-      "resolveJsonModule": true
-    },
-    "include": [
-      "./**/*.ts"
-    ]
-} 
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "resolveJsonModule": true
+  },
+  "include": ["./**/*.ts"]
+}
